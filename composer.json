@@ -1,12 +1,12 @@
 {
-    "name": "viewtrender/php-youtube-fake-laravel",
+    "name": "viewtrender/php-youtube-testkit-laravel",
     "description": "Laravel integration for php-youtube-fake",
     "type": "library",
     "license": "MIT",
     "version": "0.1.0",
     "require": {
         "php": "^8.3",
-        "viewtrender/php-youtube-fake-core": "^0.1",
+        "viewtrender/php-youtube-testkit-core": "^0.1",
         "illuminate/support": "^10.0|^11.0|^12.0"
     },
     "autoload": {
