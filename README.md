@@ -193,14 +193,63 @@ See the [core package README](https://github.com/viewtrender/php-youtube-testkit
 
 ## Testing
 
-Always call `YoutubeDataApi::reset()` in `tearDown()` before `parent::tearDown()` to clear fake state between tests:
+Always reset fake state after each test to prevent leaking between tests.
+
+### PHPUnit
 
 ```php
-protected function tearDown(): void
+use Orchestra\Testbench\TestCase;
+use Viewtrender\Youtube\Factories\YoutubeChannel;
+use Viewtrender\Youtube\YoutubeDataApi;
+
+class ChannelControllerTest extends TestCase
 {
-    YoutubeDataApi::reset();
-    parent::tearDown();
+    protected function tearDown(): void
+    {
+        YoutubeDataApi::reset();
+        parent::tearDown();
+    }
+
+    public function test_show_returns_channel(): void
+    {
+        YoutubeDataApi::fake([
+            YoutubeChannel::listWithChannels([
+                ['id' => 'UC123', 'snippet' => ['title' => 'My Channel']],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/channels/UC123');
+
+        $response->assertOk();
+        $response->assertJsonPath('title', 'My Channel');
+        YoutubeDataApi::assertListedChannels();
+    }
 }
+```
+
+### Pest
+
+```php
+use Viewtrender\Youtube\Factories\YoutubeChannel;
+use Viewtrender\Youtube\YoutubeDataApi;
+
+afterEach(function () {
+    YoutubeDataApi::reset();
+});
+
+it('returns a channel', function () {
+    YoutubeDataApi::fake([
+        YoutubeChannel::listWithChannels([
+            ['id' => 'UC123', 'snippet' => ['title' => 'My Channel']],
+        ]),
+    ]);
+
+    $response = $this->getJson('/api/channels/UC123');
+
+    $response->assertOk();
+    $response->assertJsonPath('title', 'My Channel');
+    YoutubeDataApi::assertListedChannels();
+});
 ```
 
 ## License
