@@ -1,0 +1,27 @@
+{
+    "name": "viewtrender/php-youtube-fake-laravel",
+    "description": "Laravel integration for php-youtube-fake",
+    "type": "library",
+    "license": "MIT",
+    "version": "0.1.0",
+    "require": {
+        "php": "^8.3",
+        "viewtrender/php-youtube-fake-core": "^0.1",
+        "illuminate/support": "^10.0|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Viewtrender\\Youtube\\Laravel\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Viewtrender\\Youtube\\Laravel\\YoutubeDataApiServiceProvider"
+            ],
+            "aliases": {
+                "YoutubeDataApi": "Viewtrender\\Youtube\\Laravel\\Facades\\YoutubeDataApi"
+            }
+        }
+    }
+}
