@@ -9,24 +9,11 @@ Laravel integration for mocking Google YouTube API responses in tests.
 
 ## Overview
 
-**php-youtube-testkit** provides fake YouTube Data API responses for testing code that uses [`google/apiclient`](https://github.com/googleapis/google-api-php-client) without hitting real APIs. Queue fake responses, call your code as normal, then assert exactly which requests were made.
+This package provides a Laravel service provider, facade, and automatic container swap for [`viewtrender/php-youtube-testkit-core`](https://github.com/viewtrender/php-youtube-testkit-core). When you call `YoutubeDataApi::fake()` in a test, the service provider replaces the `Google\Service\YouTube` container binding with a fake instance — controllers that type-hint `YouTube` receive the fake automatically.
 
-The project ships as two packages:
-
-| Package | Use case |
-|---|---|
-| `viewtrender/php-youtube-testkit-core` | Framework-agnostic core — works with any PHP project |
-| `viewtrender/php-youtube-testkit-laravel` | Laravel integration — auto-swaps the container binding |
+For the full API reference (factories, assertions, error responses), see the [core package README](https://github.com/viewtrender/php-youtube-testkit-core).
 
 ## Installation
-
-### Core (any PHP project)
-
-```bash
-composer require --dev viewtrender/php-youtube-testkit-core
-```
-
-### Laravel
 
 ```bash
 composer require --dev viewtrender/php-youtube-testkit-laravel
@@ -38,84 +25,63 @@ The service provider is auto-discovered. To publish the config file:
 php artisan vendor:publish --tag=youtube-testkit-config
 ```
 
-### Requirements
+## Requirements
 
 - PHP 8.3+
+- Laravel 10, 11, or 12
 - `google/apiclient` ^2.15
 
 ## Quick Start
 
 ```php
-use Viewtrender\Youtube\YoutubeDataApi;
+use Orchestra\Testbench\TestCase;
 use Viewtrender\Youtube\Factories\YoutubeVideo;
-
-// 1. Activate fakes and queue a response
-YoutubeDataApi::fake([
-    YoutubeVideo::list(),
-]);
-
-// 2. Use the YouTube service as normal
-$youtube = YoutubeDataApi::youtube();
-$response = $youtube->videos->listVideos('snippet,statistics', ['id' => 'dQw4w9WgXcQ']);
-
-// 3. Assert the request was made
-YoutubeDataApi::assertListedVideos();
-YoutubeDataApi::assertSentCount(1);
-
-// 4. Clean up
-YoutubeDataApi::reset();
-```
-
-## Usage — Framework-Agnostic
-
-### Setting up fakes
-
-Call `YoutubeDataApi::fake()` with an array of responses. Each response is consumed in order as your code makes requests:
-
-```php
 use Viewtrender\Youtube\YoutubeDataApi;
-use Viewtrender\Youtube\Factories\YoutubeVideo;
-use Viewtrender\Youtube\Factories\YoutubeChannel;
 
-YoutubeDataApi::fake([
-    YoutubeVideo::list(),      // first request gets this
-    YoutubeChannel::list(),    // second request gets this
-]);
-```
-
-### Getting a YouTube service
-
-You can get a pre-configured `Google\Service\YouTube` instance directly:
-
-```php
-$youtube = YoutubeDataApi::youtube();
-```
-
-Or create one from the fake Google Client:
-
-```php
-use Google\Service\YouTube;
-
-$youtube = new YouTube(YoutubeDataApi::client());
-```
-
-### Resetting in tearDown
-
-Always reset the fake state after each test:
-
-```php
-protected function tearDown(): void
+class VideoControllerTest extends TestCase
 {
-    YoutubeDataApi::reset();
-    parent::tearDown();
+    protected function tearDown(): void
+    {
+        YoutubeDataApi::reset();
+        parent::tearDown();
+    }
+
+    public function test_index_returns_videos(): void
+    {
+        // 1. Activate fakes and queue a response
+        YoutubeDataApi::fake([
+            YoutubeVideo::listWithVideos([
+                [
+                    'id' => 'dQw4w9WgXcQ',
+                    'snippet' => ['title' => 'Never Gonna Give You Up'],
+                    'statistics' => ['viewCount' => '1500000000'],
+                ],
+            ]),
+        ]);
+
+        // 2. Hit a route that injects YouTube via the container
+        $response = $this->getJson('/api/videos?ids=dQw4w9WgXcQ');
+
+        // 3. Assert on the HTTP response
+        $response->assertOk();
+        $response->assertJsonPath('videos.0.title', 'Never Gonna Give You Up');
+
+        // 4. Assert the YouTube API call was made
+        YoutubeDataApi::assertListedVideos();
+    }
 }
 ```
 
-## Usage — Laravel
+## How It Works
 
-### Register the real YouTube binding
+1. `YoutubeDataApiServiceProvider::register()` calls `YoutubeDataApi::registerContainerSwap()` with a closure.
+2. When test code calls `YoutubeDataApi::fake([...])`, the core package invokes that closure.
+3. The closure binds the fake `YouTube` instance into the Laravel container via `$this->app->instance(YouTube::class, ...)`.
+4. Controllers that inject `YouTube` via the container now receive the fake instance.
 
-In your `AppServiceProvider`, register the real `YouTube` service for production use:
+## Setup
+
+Register the real `YouTube` service in your `AppServiceProvider` so your application has a binding to swap in tests:
 
 ```php
 use Google\Client as GoogleClient;
@@ -133,36 +99,7 @@ public function register(): void
 }
 ```
 
-### Faking in tests
-
-When `YoutubeDataApi::fake()` is called, the Laravel service provider automatically replaces the container's `YouTube::class` binding with a fake instance:
-
-```php
-use Viewtrender\Youtube\YoutubeDataApi;
-use Viewtrender\Youtube\Factories\YoutubeVideo;
-
-public function test_index_returns_videos(): void
-{
-    YoutubeDataApi::fake([
-        YoutubeVideo::listWithVideos([
-            [
-                'id' => 'dQw4w9WgXcQ',
-                'snippet' => ['title' => 'Never Gonna Give You Up'],
-                'statistics' => ['viewCount' => '1500000000'],
-            ],
-        ]),
-    ]);
-
-    $response = $this->getJson('/api/videos?ids=dQw4w9WgXcQ');
-
-    $response->assertOk();
-    $response->assertJsonPath('videos.0.title', 'Never Gonna Give You Up');
-
-    YoutubeDataApi::assertListedVideos();
-}
-```
-
-Controllers can type-hint `YouTube` as usual — the container resolves the fake automatically:
+Controllers can then type-hint `YouTube` as usual:
 
 ```php
 use Google\Service\YouTube;
@@ -172,144 +109,49 @@ class VideoController extends Controller
     public function show(YouTube $youtube, string $id)
     {
         $response = $youtube->videos->listVideos('snippet,statistics', ['id' => $id]);
-        // ...
+        $video = $response->getItems()[0] ?? null;
+
+        return response()->json([
+            'id' => $video?->getId(),
+            'title' => $video?->getSnippet()?->getTitle(),
+            'views' => $video?->getStatistics()?->getViewCount(),
+        ]);
     }
 }
 ```
 
-## Factories
+## Facade
 
-Four factories are available, each backed by realistic fixture data:
-
-| Factory | List method | List with items | Single item | Empty |
-|---|---|---|---|---|
-| `YoutubeVideo` | `list()` | `listWithVideos()` | `video()` | `empty()` |
-| `YoutubeChannel` | `list()` | `listWithChannels()` | `channel()` | `empty()` |
-| `YoutubePlaylist` | `list()` | `listWithPlaylists()` | `playlist()` | `empty()` |
-| `YoutubeSearchResult` | `list()` | `listWithResults()` | `searchResult()` | `empty()` |
-
-### Default response
-
-Returns the full fixture with realistic defaults:
+Import the Laravel facade instead of the base class when you prefer facade syntax:
 
 ```php
-YoutubeVideo::list();
+use Viewtrender\Youtube\Laravel\Facades\YoutubeDataApi;
 ```
 
-### Custom items
+Available methods:
 
-Pass an array of items — only specify the fields you care about. Unspecified fields use fixture defaults via deep merge:
+| Method | Description |
+|---|---|
+| `YoutubeDataApi::fake(array $responses)` | Activate fakes and queue responses |
+| `YoutubeDataApi::youtube()` | Get the fake `YouTube` service instance |
+| `YoutubeDataApi::client()` | Get the fake `Google\Client` instance |
+| `YoutubeDataApi::reset()` | Clear all fake state |
+| `YoutubeDataApi::assertSent(callable $callback)` | At least one request matched the callback |
+| `YoutubeDataApi::assertNotSent(callable $callback)` | No request matched the callback |
+| `YoutubeDataApi::assertNothingSent()` | No requests were sent |
+| `YoutubeDataApi::assertSentCount(int $count)` | Exact number of requests were sent |
+| `YoutubeDataApi::assertListedVideos()` | A videos list request was made |
+| `YoutubeDataApi::assertListedChannels()` | A channels list request was made |
+| `YoutubeDataApi::assertListedPlaylists()` | A playlists list request was made |
+| `YoutubeDataApi::assertSearched()` | A search request was made |
 
-```php
-YoutubeVideo::listWithVideos([
-    [
-        'id' => 'abc123',
-        'snippet' => ['title' => 'My Custom Title'],
-        'statistics' => ['viewCount' => '999'],
-    ],
-    [
-        'id' => 'def456',
-        'snippet' => ['title' => 'Another Video'],
-    ],
-]);
+## Configuration
+
+After publishing the config:
+
+```bash
+php artisan vendor:publish --tag=youtube-testkit-config
 ```
-
-### Single item builder
-
-Build a single item array (useful for composing custom responses):
-
-```php
-$video = YoutubeVideo::video(['id' => 'abc123']);
-```
-
-### Empty response
-
-Returns a valid API response with zero items:
-
-```php
-YoutubeVideo::empty();
-```
-
-## Error Responses
-
-Simulate YouTube API errors:
-
-```php
-use Viewtrender\Youtube\Responses\ErrorResponse;
-
-YoutubeDataApi::fake([
-    ErrorResponse::notFound(),
-    ErrorResponse::forbidden(),
-    ErrorResponse::unauthorized(),
-    ErrorResponse::quotaExceeded(),
-    ErrorResponse::badRequest(),
-]);
-```
-
-Each method accepts an optional custom message:
-
-```php
-ErrorResponse::notFound('Video not found.');
-ErrorResponse::quotaExceeded('Daily quota exhausted.');
-```
-
-## Assertions
-
-### Request assertions
-
-```php
-// At least one request matched the callback
-YoutubeDataApi::assertSent(function (RequestInterface $request): bool {
-    return str_contains($request->getUri()->getPath(), '/youtube/v3/videos')
-        && str_contains((string) $request->getUri(), 'dQw4w9WgXcQ');
-});
-
-// No request matched the callback
-YoutubeDataApi::assertNotSent(function (RequestInterface $request): bool {
-    return str_contains($request->getUri()->getPath(), '/youtube/v3/channels');
-});
-
-// No requests were sent at all
-YoutubeDataApi::assertNothingSent();
-
-// Exact number of requests
-YoutubeDataApi::assertSentCount(2);
-```
-
-### Path shorthand assertions
-
-```php
-YoutubeDataApi::assertListedVideos();      // /youtube/v3/videos
-YoutubeDataApi::assertSearched();          // /youtube/v3/search
-YoutubeDataApi::assertListedChannels();    // /youtube/v3/channels
-YoutubeDataApi::assertListedPlaylists();   // /youtube/v3/playlists
-YoutubeDataApi::assertCalledPath('/youtube/v3/custom');
-```
-
-## Preventing Stray Requests
-
-Throw an exception when a request is made but no fake response is queued:
-
-```php
-$fake = YoutubeDataApi::fake([
-    YoutubeVideo::list(),
-]);
-
-$fake->preventStrayRequests();
-```
-
-In Laravel, enable it globally via config:
-
-```php
-// config/youtube-testkit.php
-'prevent_stray_requests' => true,
-```
-
-When enabled, any unmatched request throws `Viewtrender\Youtube\Exceptions\StrayRequestException`.
-
-## Configuration (Laravel)
-
-After publishing the config (`php artisan vendor:publish --tag=youtube-testkit-config`):
 
 ```php
 // config/youtube-testkit.php
@@ -322,53 +164,43 @@ return [
 ];
 ```
 
-## Testing
+## Preventing Stray Requests
 
-### PHPUnit
+Enable globally via config to throw an exception when a request is made but no fake response is queued:
 
 ```php
-use Viewtrender\Youtube\YoutubeDataApi;
-
-class MyTest extends TestCase
-{
-    protected function tearDown(): void
-    {
-        YoutubeDataApi::reset();
-        parent::tearDown();
-    }
-
-    public function test_it_fetches_videos(): void
-    {
-        YoutubeDataApi::fake([
-            YoutubeVideo::list(),
-        ]);
-
-        // ... your test logic
-
-        YoutubeDataApi::assertListedVideos();
-    }
-}
+// config/youtube-testkit.php
+'prevent_stray_requests' => true,
 ```
 
-### Pest
+Or enable per-test:
 
 ```php
-use Viewtrender\Youtube\YoutubeDataApi;
-use Viewtrender\Youtube\Factories\YoutubeVideo;
+$fake = YoutubeDataApi::fake([
+    YoutubeVideo::list(),
+]);
 
-afterEach(function () {
+$fake->preventStrayRequests();
+```
+
+When enabled, any unmatched request throws `Viewtrender\Youtube\Exceptions\StrayRequestException`.
+
+## Factories, Assertions & Error Responses
+
+The core package provides factories (`YoutubeVideo`, `YoutubeChannel`, `YoutubePlaylist`, `YoutubeSearchResult`), assertion methods, and error response helpers (`ErrorResponse::notFound()`, `ErrorResponse::quotaExceeded()`, etc.).
+
+See the [core package README](https://github.com/viewtrender/php-youtube-testkit-core) for full documentation.
+
+## Testing
+
+Always call `YoutubeDataApi::reset()` in `tearDown()` before `parent::tearDown()` to clear fake state between tests:
+
+```php
+protected function tearDown(): void
+{
     YoutubeDataApi::reset();
-});
-
-it('fetches videos', function () {
-    YoutubeDataApi::fake([
-        YoutubeVideo::list(),
-    ]);
-
-    // ... your test logic
-
-    YoutubeDataApi::assertListedVideos();
-});
+    parent::tearDown();
+}
 ```
 
 ## License
