@@ -185,9 +185,50 @@ $fake->preventStrayRequests();
 
 When enabled, any unmatched request throws `Viewtrender\Youtube\Exceptions\StrayRequestException`.
 
-## Factories, Assertions & Error Responses
+## Factories
 
-The core package provides factories (`YoutubeVideo`, `YoutubeChannel`, `YoutubePlaylist`, `YoutubeSearchResult`), assertion methods, and error response helpers (`ErrorResponse::notFound()`, `ErrorResponse::quotaExceeded()`, etc.).
+The core package provides 20 factories for YouTube Data API v3 endpoints:
+
+| Factory | Use Case |
+|---------|----------|
+| `YoutubeVideo` | Videos list/details |
+| `YoutubeChannel` | Channels list/details |
+| `YoutubePlaylist` | Playlists list/details |
+| `YoutubePlaylistItems` | Playlist items |
+| `YoutubeSearchResult` | Search results |
+| `YoutubeSubscriptions` | Channel subscriptions |
+| `YoutubeComments` | Video/channel comments |
+| `YoutubeCommentThreads` | Comment threads |
+| `YoutubeActivities` | Channel activity feed |
+| `YoutubeCaptions` | Video captions/subtitles |
+| `YoutubeChannelSections` | Channel page sections |
+| `YoutubeMembers` | Channel members (OAuth) |
+| `YoutubeMembershipsLevels` | Membership tiers (OAuth) |
+| `YoutubeI18nLanguages` | Supported languages |
+| `YoutubeI18nRegions` | Supported regions |
+| `YoutubeVideoCategories` | Video categories |
+| `YoutubeVideoAbuseReportReasons` | Abuse report reasons |
+| `YoutubeGuideCategories` | Guide categories (deprecated) |
+| `YoutubeThumbnails` | Thumbnail upload (write-only) |
+| `YoutubeWatermarks` | Channel watermarks (write-only) |
+
+Each factory provides `list()`, `listWith{Resource}s()`, `empty()`, and single-item methods.
+
+## Error Responses
+
+Simulate API errors with `ErrorResponse`:
+
+```php
+use Viewtrender\Youtube\Responses\ErrorResponse;
+
+YoutubeDataApi::fake([
+    ErrorResponse::notFound(),
+    ErrorResponse::forbidden(),
+    ErrorResponse::unauthorized(),
+    ErrorResponse::quotaExceeded(),
+    ErrorResponse::badRequest(),
+]);
+```
 
 See the [core package README](https://github.com/viewtrender/php-youtube-testkit-core) for full documentation.
 
