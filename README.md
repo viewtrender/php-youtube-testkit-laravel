@@ -195,14 +195,123 @@ See the [core package README](https://github.com/viewtrender/php-youtube-testkit
 
 Always reset fake state after each test to prevent leaking between tests.
 
+### Pest
+
+```php
+use Viewtrender\Youtube\Factories\YoutubeVideo;
+use Viewtrender\Youtube\YoutubeDataApi;
+
+afterEach(function () {
+    YoutubeDataApi::reset();
+});
+```
+
+#### API (JSON response)
+
+```php
+it('returns videos as JSON', function () {
+    YoutubeDataApi::fake([
+        YoutubeVideo::listWithVideos([
+            [
+                'id' => 'dQw4w9WgXcQ',
+                'snippet' => ['title' => 'Never Gonna Give You Up'],
+                'statistics' => ['viewCount' => '1500000000'],
+            ],
+        ]),
+    ]);
+
+    $response = $this->getJson('/api/videos/dQw4w9WgXcQ');
+
+    $response->assertOk();
+    $response->assertJsonPath('title', 'Never Gonna Give You Up');
+    YoutubeDataApi::assertListedVideos();
+});
+```
+
+#### Blade view
+
+```php
+it('displays videos in a blade view', function () {
+    YoutubeDataApi::fake([
+        YoutubeVideo::listWithVideos([
+            [
+                'id' => 'dQw4w9WgXcQ',
+                'snippet' => ['title' => 'Never Gonna Give You Up'],
+                'statistics' => ['viewCount' => '1500000000'],
+            ],
+        ]),
+    ]);
+
+    $response = $this->get('/videos/dQw4w9WgXcQ');
+
+    $response->assertOk();
+    $response->assertViewHas('videos');
+    $response->assertSee('Never Gonna Give You Up');
+    YoutubeDataApi::assertListedVideos();
+});
+```
+
+#### Inertia.js
+
+```php
+use Inertia\Testing\AssertableInertia as Assert;
+
+it('passes video data to an Inertia page', function () {
+    YoutubeDataApi::fake([
+        YoutubeVideo::listWithVideos([
+            [
+                'id' => 'dQw4w9WgXcQ',
+                'snippet' => ['title' => 'Never Gonna Give You Up'],
+                'statistics' => ['viewCount' => '1500000000'],
+            ],
+        ]),
+    ]);
+
+    $response = $this->get('/videos/dQw4w9WgXcQ');
+
+    $response->assertInertia(
+        fn (Assert $page) => $page
+            ->component('Videos/Show')
+            ->has('video')
+            ->where('video.title', 'Never Gonna Give You Up')
+    );
+    YoutubeDataApi::assertListedVideos();
+});
+```
+
+#### Livewire
+
+```php
+use Livewire\Livewire;
+
+it('searches for videos in a Livewire component', function () {
+    YoutubeDataApi::fake([
+        YoutubeVideo::listWithVideos([
+            [
+                'id' => 'dQw4w9WgXcQ',
+                'snippet' => ['title' => 'Never Gonna Give You Up'],
+                'statistics' => ['viewCount' => '1500000000'],
+            ],
+        ]),
+    ]);
+
+    Livewire::test(VideoSearch::class)
+        ->set('query', 'Never Gonna Give You Up')
+        ->call('search')
+        ->assertSee('Never Gonna Give You Up');
+
+    YoutubeDataApi::assertListedVideos();
+});
+```
+
 ### PHPUnit
 
 ```php
 use Orchestra\Testbench\TestCase;
-use Viewtrender\Youtube\Factories\YoutubeChannel;
+use Viewtrender\Youtube\Factories\YoutubeVideo;
 use Viewtrender\Youtube\YoutubeDataApi;
 
-class ChannelControllerTest extends TestCase
+class VideoControllerTest extends TestCase
 {
     protected function tearDown(): void
     {
@@ -210,47 +319,28 @@ class ChannelControllerTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_show_returns_channel(): void
+    public function test_show_returns_video(): void
     {
         YoutubeDataApi::fake([
-            YoutubeChannel::listWithChannels([
-                ['id' => 'UC123', 'snippet' => ['title' => 'My Channel']],
+            YoutubeVideo::listWithVideos([
+                [
+                    'id' => 'dQw4w9WgXcQ',
+                    'snippet' => ['title' => 'Never Gonna Give You Up'],
+                    'statistics' => ['viewCount' => '1500000000'],
+                ],
             ]),
         ]);
 
-        $response = $this->getJson('/api/channels/UC123');
+        $response = $this->getJson('/api/videos/dQw4w9WgXcQ');
 
         $response->assertOk();
-        $response->assertJsonPath('title', 'My Channel');
-        YoutubeDataApi::assertListedChannels();
+        $response->assertJsonPath('title', 'Never Gonna Give You Up');
+        YoutubeDataApi::assertListedVideos();
     }
 }
 ```
 
-### Pest
-
-```php
-use Viewtrender\Youtube\Factories\YoutubeChannel;
-use Viewtrender\Youtube\YoutubeDataApi;
-
-afterEach(function () {
-    YoutubeDataApi::reset();
-});
-
-it('returns a channel', function () {
-    YoutubeDataApi::fake([
-        YoutubeChannel::listWithChannels([
-            ['id' => 'UC123', 'snippet' => ['title' => 'My Channel']],
-        ]),
-    ]);
-
-    $response = $this->getJson('/api/channels/UC123');
-
-    $response->assertOk();
-    $response->assertJsonPath('title', 'My Channel');
-    YoutubeDataApi::assertListedChannels();
-});
-```
+> The same Blade view, Inertia.js, and Livewire patterns shown in the Pest section above apply in PHPUnit — just wrap them in test methods within your test class.
 
 ## License
 
