@@ -6,7 +6,11 @@ namespace Viewtrender\Youtube\Laravel\Tests;
 
 use Google\Service\YouTube;
 use Orchestra\Testbench\TestCase;
+use Psr\Http\Message\RequestInterface;
 use Viewtrender\Youtube\Factories\YoutubeChannel;
+use Viewtrender\Youtube\Factories\YoutubePlaylist;
+use Viewtrender\Youtube\Factories\YoutubeSearchResult;
+use Viewtrender\Youtube\Factories\YoutubeVideo;
 use Viewtrender\Youtube\Laravel\Facades\YoutubeDataApi;
 use Viewtrender\Youtube\Laravel\YoutubeDataApiServiceProvider;
 
@@ -26,13 +30,13 @@ class FacadeTest extends TestCase
 
     protected function tearDown(): void
     {
-        \Viewtrender\Youtube\YoutubeDataApi::reset();
+        YoutubeDataApi::reset();
         parent::tearDown();
     }
 
     public function test_fake_returns_fake_client(): void
     {
-        $fake = \Viewtrender\Youtube\YoutubeDataApi::fake([
+        $fake = YoutubeDataApi::fake([
             YoutubeChannel::list(),
         ]);
 
@@ -41,7 +45,7 @@ class FacadeTest extends TestCase
 
     public function test_fake_swaps_container_and_returns_fake_data(): void
     {
-        \Viewtrender\Youtube\YoutubeDataApi::fake([
+        YoutubeDataApi::fake([
             YoutubeChannel::list(),
         ]);
 
@@ -51,6 +55,81 @@ class FacadeTest extends TestCase
         $this->assertNotEmpty($response->getItems());
         $this->assertSame('Fake Channel', $response->getItems()[0]->getSnippet()->getTitle());
 
-        \Viewtrender\Youtube\YoutubeDataApi::assertListedChannels();
+        YoutubeDataApi::assertListedChannels();
+    }
+
+    public function test_assert_not_sent(): void
+    {
+        YoutubeDataApi::fake([
+            YoutubeChannel::list(),
+        ]);
+
+        $youtube = $this->app->make(YouTube::class);
+        $youtube->channels->listChannels('snippet', ['id' => 'UC123']);
+
+        YoutubeDataApi::assertNotSent(function (RequestInterface $request): bool {
+            return str_contains($request->getUri()->getPath(), '/youtube/v3/videos');
+        });
+    }
+
+    public function test_assert_nothing_sent(): void
+    {
+        YoutubeDataApi::fake([
+            YoutubeChannel::list(),
+        ]);
+
+        YoutubeDataApi::assertNothingSent();
+    }
+
+    public function test_assert_sent_count(): void
+    {
+        YoutubeDataApi::fake([
+            YoutubeChannel::list(),
+            YoutubeChannel::list(),
+        ]);
+
+        $youtube = $this->app->make(YouTube::class);
+        $youtube->channels->listChannels('snippet', ['id' => 'UC123']);
+        $youtube->channels->listChannels('snippet', ['id' => 'UC456']);
+
+        YoutubeDataApi::assertSentCount(2);
+    }
+
+    public function test_assert_sent_with_callback(): void
+    {
+        YoutubeDataApi::fake([
+            YoutubeChannel::list(),
+        ]);
+
+        $youtube = $this->app->make(YouTube::class);
+        $youtube->channels->listChannels('snippet', ['id' => 'UC123']);
+
+        YoutubeDataApi::assertSent(function (RequestInterface $request): bool {
+            return str_contains($request->getUri()->getPath(), '/youtube/v3/channels');
+        });
+    }
+
+    public function test_assert_listed_playlists(): void
+    {
+        YoutubeDataApi::fake([
+            YoutubePlaylist::list(),
+        ]);
+
+        $youtube = $this->app->make(YouTube::class);
+        $youtube->playlists->listPlaylists('snippet', ['channelId' => 'UC123']);
+
+        YoutubeDataApi::assertListedPlaylists();
+    }
+
+    public function test_assert_searched(): void
+    {
+        YoutubeDataApi::fake([
+            YoutubeSearchResult::list(),
+        ]);
+
+        $youtube = $this->app->make(YouTube::class);
+        $youtube->search->listSearch('snippet', ['q' => 'laravel']);
+
+        YoutubeDataApi::assertSearched();
     }
 }

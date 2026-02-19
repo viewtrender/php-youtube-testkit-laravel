@@ -12,12 +12,12 @@ class YoutubeDataApiServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/config/youtube-fake.php', 'youtube-fake');
+        $this->mergeConfigFrom(__DIR__ . '/config/youtube-testkit.php', 'youtube-testkit');
 
         YoutubeDataApi::registerContainerSwap(function () {
             $this->app->instance(YouTube::class, YoutubeDataApi::youtube());
 
-            if ($this->app['config']->get('youtube-fake.prevent_stray_requests')) {
+            if ($this->app['config']->get('youtube-testkit.prevent_stray_requests')) {
                 YoutubeDataApi::instance()->preventStrayRequests();
             }
         });
@@ -27,8 +27,8 @@ class YoutubeDataApiServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__ . '/config/youtube-fake.php' => config_path('youtube-fake.php'),
-            ], 'youtube-fake-config');
+                __DIR__ . '/config/youtube-testkit.php' => config_path('youtube-testkit.php'),
+            ], 'youtube-testkit-config');
         }
     }
 }

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Viewtrender\Youtube\Laravel\Tests;
 
 use Google\Service\YouTube;
-use Illuminate\Support\Facades\Route;
 use Orchestra\Testbench\TestCase;
+use Viewtrender\Youtube\Exceptions\StrayRequestException;
 use Viewtrender\Youtube\Factories\YoutubeChannel;
 use Viewtrender\Youtube\Factories\YoutubeVideo;
 use Viewtrender\Youtube\Laravel\YoutubeDataApiServiceProvider;
@@ -74,13 +74,13 @@ class ContainerSwapTest extends TestCase
 
     public function test_prevent_stray_requests_via_config(): void
     {
-        config()->set('youtube-fake.prevent_stray_requests', true);
+        config()->set('youtube-testkit.prevent_stray_requests', true);
 
         YoutubeDataApi::fake([]);
 
         $youtube = $this->app->make(YouTube::class);
 
-        $this->expectException(\Viewtrender\Youtube\Exceptions\StrayRequestException::class);
+        $this->expectException(StrayRequestException::class);
         $youtube->channels->listChannels('snippet', ['id' => 'UC123']);
     }
 

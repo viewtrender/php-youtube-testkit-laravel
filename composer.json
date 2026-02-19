@@ -1,6 +1,6 @@
 {
     "name": "viewtrender/php-youtube-testkit-laravel",
-    "description": "Laravel integration for php-youtube-fake",
+    "description": "Laravel integration for php-youtube-testkit",
     "type": "library",
     "license": "MIT",
     "version": "0.1.0",
@@ -9,9 +9,18 @@
         "viewtrender/php-youtube-testkit-core": "^0.1",
         "illuminate/support": "^10.0|^11.0|^12.0"
     },
+    "require-dev": {
+        "orchestra/testbench": "^10.0",
+        "phpunit/phpunit": "^11.0"
+    },
     "autoload": {
         "psr-4": {
             "Viewtrender\\Youtube\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Viewtrender\\Youtube\\Laravel\\Tests\\": "tests/"
         }
     },
     "extra": {

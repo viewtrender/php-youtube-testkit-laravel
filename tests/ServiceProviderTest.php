@@ -30,9 +30,9 @@ class ServiceProviderTest extends TestCase
 
     public function test_config_is_merged(): void
     {
-        $this->assertNotNull(config('youtube-fake'));
-        $this->assertNull(config('youtube-fake.fixtures_path'));
-        $this->assertFalse(config('youtube-fake.prevent_stray_requests'));
+        $this->assertNotNull(config('youtube-testkit'));
+        $this->assertNull(config('youtube-testkit.fixtures_path'));
+        $this->assertFalse(config('youtube-testkit.prevent_stray_requests'));
     }
 
     public function test_fake_auto_swaps_youtube_container_binding(): void
