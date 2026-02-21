@@ -1,6 +1,6 @@
 # php-youtube-testkit-laravel
 
-Laravel integration for mocking Google YouTube API responses in tests.
+Laravel integration for mocking YouTube Data, Analytics, and Reporting APIs in tests.
 
 [![Tests](https://github.com/viewtrender/php-youtube-testkit-laravel/actions/workflows/tests.yml/badge.svg)](https://github.com/viewtrender/php-youtube-testkit-laravel/actions/workflows/tests.yml)
 [![Latest Version](https://img.shields.io/packagist/v/viewtrender/php-youtube-testkit-laravel)](https://packagist.org/packages/viewtrender/php-youtube-testkit-laravel)
@@ -9,7 +9,13 @@ Laravel integration for mocking Google YouTube API responses in tests.
 
 ## Overview
 
-This package provides a Laravel service provider, facade, and automatic container swap for [`viewtrender/php-youtube-testkit-core`](https://github.com/viewtrender/php-youtube-testkit-core). When you call `YoutubeDataApi::fake()` in a test, the service provider replaces the `Google\Service\YouTube` container binding with a fake instance — controllers that type-hint `YouTube` receive the fake automatically.
+Laravel service provider, facades, and automatic container swaps for [`viewtrender/php-youtube-testkit-core`](https://github.com/viewtrender/php-youtube-testkit-core). Supports three YouTube APIs:
+
+- **YouTube Data API** — videos, channels, playlists, search, comments
+- **YouTube Analytics API** — on-demand metrics queries
+- **YouTube Reporting API** — bulk data exports and scheduled jobs
+
+When you call `fake()` on any API facade, the service provider replaces the Google Service container binding with a fake instance — controllers that type-hint the service receive the fake automatically.
 
 ## Installation
 
@@ -31,35 +37,56 @@ php artisan vendor:publish --tag=youtube-testkit-config
 
 ## Setup
 
-Register the real `YouTube` service in your `AppServiceProvider`:
+Register the real Google services in your `AppServiceProvider`:
 
 ```php
 use Google\Client as GoogleClient;
 use Google\Service\YouTube;
+use Google\Service\YouTubeAnalytics;
+use Google\Service\YouTubeReporting;
 
 public function register(): void
 {
-    $this->app->singleton(YouTube::class, function () {
+    // Shared Google Client (configure once)
+    $this->app->singleton(GoogleClient::class, function () {
         $client = new GoogleClient();
         $client->setApplicationName(config('services.youtube.application_name', 'My App'));
         $client->setDeveloperKey(config('services.youtube.api_key'));
+        // For Analytics/Reporting, also set OAuth credentials
+        return $client;
+    });
 
-        return new YouTube($client);
+    // YouTube Data API
+    $this->app->singleton(YouTube::class, function ($app) {
+        return new YouTube($app->make(GoogleClient::class));
+    });
+
+    // YouTube Analytics API
+    $this->app->singleton(YouTubeAnalytics::class, function ($app) {
+        return new YouTubeAnalytics($app->make(GoogleClient::class));
+    });
+
+    // YouTube Reporting API
+    $this->app->singleton(YouTubeReporting::class, function ($app) {
+        return new YouTubeReporting($app->make(GoogleClient::class));
     });
 }
 ```
 
-Controllers can then type-hint `YouTube`:
+Controllers can then type-hint any service:
 
 ```php
 use Google\Service\YouTube;
+use Google\Service\YouTubeAnalytics;
 
-class VideoController extends Controller
+class DashboardController extends Controller
 {
-    public function show(YouTube $youtube, string $id)
+    public function index(YouTube $youtube, YouTubeAnalytics $analytics)
     {
-        $response = $youtube->videos->listVideos('snippet,statistics', ['id' => $id]);
-        return response()->json($response->getItems()[0] ?? null);
+        $videos = $youtube->videos->listVideos('snippet', ['chart' => 'mostPopular']);
+        $stats = $analytics->reports->query([...]);
+        
+        return view('dashboard', compact('videos', 'stats'));
     }
 }
 ```
@@ -73,10 +100,14 @@ class VideoController extends Controller
 Create a base test file or add to `tests/Pest.php`:
 
 ```php
+use Viewtrender\Youtube\YoutubeAnalyticsApi;
 use Viewtrender\Youtube\YoutubeDataApi;
+use Viewtrender\Youtube\YoutubeReportingApi;
 
 afterEach(function () {
     YoutubeDataApi::reset();
+    YoutubeAnalyticsApi::reset();
+    YoutubeReportingApi::reset();
 });
 ```
 
@@ -887,13 +918,17 @@ it('sets channel watermark', function () {
 namespace Tests;
 
 use Orchestra\Testbench\TestCase as BaseTestCase;
+use Viewtrender\Youtube\YoutubeAnalyticsApi;
 use Viewtrender\Youtube\YoutubeDataApi;
+use Viewtrender\Youtube\YoutubeReportingApi;
 
 abstract class TestCase extends BaseTestCase
 {
     protected function tearDown(): void
     {
         YoutubeDataApi::reset();
+        YoutubeAnalyticsApi::reset();
+        YoutubeReportingApi::reset();
         parent::tearDown();
     }
     
@@ -1205,6 +1240,405 @@ class YouTubeIntegrationTest extends TestCase
         // Second request throws because no more responses queued
         $this->expectException(\Viewtrender\Youtube\Exceptions\StrayRequestException::class);
         $this->getJson('/api/videos/xyz');
+    }
+}
+```
+
+---
+
+## YouTube Analytics API
+
+For on-demand metrics queries — dashboards, real-time stats, custom date ranges.
+
+### Base Test Case (Analytics)
+
+```php
+<?php
+
+namespace Tests;
+
+use Orchestra\Testbench\TestCase as BaseTestCase;
+use Viewtrender\Youtube\YoutubeAnalyticsApi;
+
+abstract class AnalyticsTestCase extends BaseTestCase
+{
+    protected function tearDown(): void
+    {
+        YoutubeAnalyticsApi::reset();
+        parent::tearDown();
+    }
+    
+    protected function getPackageProviders($app): array
+    {
+        return [
+            \Viewtrender\Youtube\Laravel\YoutubeDataApiServiceProvider::class,
+        ];
+    }
+}
+```
+
+### Channel Analytics Tests
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use Tests\AnalyticsTestCase;
+use Viewtrender\Youtube\Factories\AnalyticsQueryResponse;
+use Viewtrender\Youtube\YoutubeAnalyticsApi;
+
+class ChannelAnalyticsTest extends AnalyticsTestCase
+{
+    public function test_fetches_channel_overview_metrics(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::channelOverview([
+                'views' => 500000,
+                'estimatedMinutesWatched' => 1500000,
+                'averageViewDuration' => 180,
+                'subscribersGained' => 1000,
+                'subscribersLost' => 50,
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/analytics/overview?startDate=2024-01-01&endDate=2024-01-31');
+
+        $response->assertOk();
+        $response->assertJsonPath('views', 500000);
+        $response->assertJsonPath('subscribersGained', 1000);
+
+        YoutubeAnalyticsApi::assertSentCount(1);
+    }
+
+    public function test_fetches_daily_metrics(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::dailyMetrics([
+                ['day' => '2024-01-01', 'views' => 10000, 'estimatedMinutesWatched' => 30000],
+                ['day' => '2024-01-02', 'views' => 12000, 'estimatedMinutesWatched' => 36000],
+                ['day' => '2024-01-03', 'views' => 11000, 'estimatedMinutesWatched' => 33000],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/analytics/daily');
+
+        $response->assertOk();
+        $response->assertJsonCount(3, 'rows');
+    }
+
+    public function test_fetches_top_videos(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::topVideos([
+                ['video' => 'dQw4w9WgXcQ', 'views' => 50000, 'estimatedMinutesWatched' => 150000],
+                ['video' => 'abc123xyz', 'views' => 30000, 'estimatedMinutesWatched' => 90000],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/analytics/top-videos');
+
+        $response->assertOk();
+        $response->assertJsonPath('rows.0.0', 'dQw4w9WgXcQ');
+    }
+
+    public function test_fetches_traffic_sources(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::trafficSources([
+                ['source' => 'RELATED_VIDEO', 'views' => 200000],
+                ['source' => 'YT_SEARCH', 'views' => 150000],
+                ['source' => 'EXT_URL', 'views' => 50000],
+                ['source' => 'SUBSCRIBER', 'views' => 30000],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/analytics/traffic-sources');
+
+        $response->assertOk();
+        $response->assertJsonCount(4, 'rows');
+    }
+
+    public function test_fetches_demographics(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::demographics([
+                ['ageGroup' => 'age18-24', 'gender' => 'male', 'viewerPercentage' => 25.5],
+                ['ageGroup' => 'age18-24', 'gender' => 'female', 'viewerPercentage' => 15.2],
+                ['ageGroup' => 'age25-34', 'gender' => 'male', 'viewerPercentage' => 22.1],
+                ['ageGroup' => 'age25-34', 'gender' => 'female', 'viewerPercentage' => 18.3],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/analytics/demographics');
+
+        $response->assertOk();
+        $response->assertJsonPath('rows.0.2', 25.5);
+    }
+
+    public function test_fetches_geography(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::geography([
+                ['country' => 'US', 'views' => 200000],
+                ['country' => 'GB', 'views' => 80000],
+                ['country' => 'CA', 'views' => 50000],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/analytics/geography');
+
+        $response->assertOk();
+        $response->assertJsonPath('rows.0.0', 'US');
+    }
+
+    public function test_fetches_content_type_breakdown(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::videoTypes([
+                ['video' => 'abc123', 'creatorContentType' => 'VIDEO_ON_DEMAND', 'views' => 180000],
+                ['video' => 'def456', 'creatorContentType' => 'SHORTS', 'views' => 120000],
+                ['video' => 'ghi789', 'creatorContentType' => 'LIVE_STREAM', 'views' => 50000],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/analytics/content-types');
+
+        $response->assertOk();
+        $response->assertJsonCount(3, 'rows');
+    }
+}
+```
+
+---
+
+## YouTube Reporting API
+
+For bulk data exports — background jobs, historical data pipelines, scheduled reports.
+
+**Workflow:** Create job → Poll for reports → Download CSV → Parse & upsert
+
+### Base Test Case (Reporting)
+
+```php
+<?php
+
+namespace Tests;
+
+use Orchestra\Testbench\TestCase as BaseTestCase;
+use Viewtrender\Youtube\YoutubeReportingApi;
+
+abstract class ReportingTestCase extends BaseTestCase
+{
+    protected function tearDown(): void
+    {
+        YoutubeReportingApi::reset();
+        parent::tearDown();
+    }
+    
+    protected function getPackageProviders($app): array
+    {
+        return [
+            \Viewtrender\Youtube\Laravel\YoutubeDataApiServiceProvider::class,
+        ];
+    }
+}
+```
+
+### Reporting Job Tests
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use Tests\ReportingTestCase;
+use Viewtrender\Youtube\Factories\ReportingJob;
+use Viewtrender\Youtube\Factories\ReportingReport;
+use Viewtrender\Youtube\Factories\ReportingReportType;
+use Viewtrender\Youtube\Factories\ReportingMedia;
+use Viewtrender\Youtube\YoutubeReportingApi;
+
+class ReportingPipelineTest extends ReportingTestCase
+{
+    public function test_creates_reporting_job(): void
+    {
+        YoutubeReportingApi::fake([
+            ReportingJob::create([
+                'id' => 'job-123',
+                'reportTypeId' => 'channel_basic_a2',
+                'name' => 'Daily Channel Stats',
+            ]),
+        ]);
+
+        $response = $this->postJson('/api/reporting/jobs', [
+            'reportTypeId' => 'channel_basic_a2',
+            'name' => 'Daily Channel Stats',
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('id', 'job-123');
+
+        YoutubeReportingApi::assertSentCount(1);
+    }
+
+    public function test_lists_reporting_jobs(): void
+    {
+        YoutubeReportingApi::fake([
+            ReportingJob::list([
+                ['id' => 'job-1', 'reportTypeId' => 'channel_basic_a2', 'name' => 'Daily Stats'],
+                ['id' => 'job-2', 'reportTypeId' => 'channel_demographics_a1', 'name' => 'Demographics'],
+                ['id' => 'job-3', 'reportTypeId' => 'channel_traffic_source_a2', 'name' => 'Traffic'],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/reporting/jobs');
+
+        $response->assertOk();
+        $response->assertJsonCount(3, 'jobs');
+        $response->assertJsonPath('jobs.0.reportTypeId', 'channel_basic_a2');
+
+        YoutubeReportingApi::assertSentCount(1);
+    }
+
+    public function test_lists_available_reports(): void
+    {
+        YoutubeReportingApi::fake([
+            ReportingReport::list([
+                [
+                    'id' => 'report-1',
+                    'jobId' => 'job-123',
+                    'startTime' => '2024-01-01T00:00:00Z',
+                    'endTime' => '2024-01-02T00:00:00Z',
+                    'createTime' => '2024-01-02T06:00:00Z',
+                    'downloadUrl' => 'https://youtubereporting.googleapis.com/v1/media/report-1',
+                ],
+                [
+                    'id' => 'report-2',
+                    'jobId' => 'job-123',
+                    'startTime' => '2024-01-02T00:00:00Z',
+                    'endTime' => '2024-01-03T00:00:00Z',
+                    'createTime' => '2024-01-03T06:00:00Z',
+                    'downloadUrl' => 'https://youtubereporting.googleapis.com/v1/media/report-2',
+                ],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/reporting/jobs/job-123/reports');
+
+        $response->assertOk();
+        $response->assertJsonCount(2, 'reports');
+    }
+
+    public function test_downloads_report_csv(): void
+    {
+        $csvContent = "date,channel_id,views,watch_time_minutes,average_view_duration_seconds\n" .
+                      "2024-01-01,UC123,10000,50000,300\n" .
+                      "2024-01-02,UC123,12000,60000,300\n" .
+                      "2024-01-03,UC123,11000,55000,300\n";
+
+        YoutubeReportingApi::fake([
+            ReportingMedia::download($csvContent),
+        ]);
+
+        $response = $this->get('/api/reporting/download/report-1');
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'text/csv');
+
+        YoutubeReportingApi::assertSentCount(1);
+    }
+
+    public function test_lists_report_types(): void
+    {
+        YoutubeReportingApi::fake([
+            ReportingReportType::list([
+                ['id' => 'channel_basic_a2', 'name' => 'Channel Basic'],
+                ['id' => 'channel_demographics_a1', 'name' => 'Channel Demographics'],
+                ['id' => 'channel_device_os_a2', 'name' => 'Channel Device/OS'],
+                ['id' => 'channel_traffic_source_a2', 'name' => 'Channel Traffic Source'],
+            ]),
+        ]);
+
+        $response = $this->getJson('/api/reporting/report-types');
+
+        $response->assertOk();
+        $response->assertJsonCount(4, 'reportTypes');
+    }
+
+    public function test_deletes_reporting_job(): void
+    {
+        YoutubeReportingApi::fake([
+            ReportingJob::delete(),
+        ]);
+
+        $response = $this->deleteJson('/api/reporting/jobs/job-123');
+
+        $response->assertNoContent();
+
+        YoutubeReportingApi::assertSentCount(1);
+    }
+}
+```
+
+### Complete Pipeline Test
+
+```php
+<?php
+
+namespace Tests\Feature;
+
+use Tests\TestCase;
+use Viewtrender\Youtube\Factories\ReportingJob;
+use Viewtrender\Youtube\Factories\ReportingReport;
+use Viewtrender\Youtube\Factories\ReportingMedia;
+use Viewtrender\Youtube\YoutubeReportingApi;
+
+class ReportingSyncJobTest extends TestCase
+{
+    protected function tearDown(): void
+    {
+        YoutubeReportingApi::reset();
+        parent::tearDown();
+    }
+
+    public function test_full_reporting_pipeline(): void
+    {
+        // Queue responses for the entire pipeline
+        YoutubeReportingApi::fake([
+            // 1. List jobs to find our job
+            ReportingJob::list([
+                ['id' => 'job-123', 'reportTypeId' => 'channel_basic_a2'],
+            ]),
+            // 2. List available reports for the job
+            ReportingReport::list([
+                [
+                    'id' => 'report-today',
+                    'jobId' => 'job-123',
+                    'startTime' => '2024-01-01T00:00:00Z',
+                    'endTime' => '2024-01-02T00:00:00Z',
+                    'downloadUrl' => 'https://youtubereporting.googleapis.com/v1/media/report-today',
+                ],
+            ]),
+            // 3. Download the report CSV
+            ReportingMedia::download(
+                "date,channel_id,views,watch_time_minutes\n" .
+                "2024-01-01,UC123,10000,50000\n"
+            ),
+        ]);
+
+        // Dispatch the sync job
+        $this->artisan('youtube:sync-reports')
+            ->assertSuccessful();
+
+        // Verify all three API calls were made
+        YoutubeReportingApi::assertSentCount(3);
+
+        // Verify data was stored
+        $this->assertDatabaseHas('channel_daily_stats', [
+            'date' => '2024-01-01',
+            'views' => 10000,
+        ]);
     }
 }
 ```

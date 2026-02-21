@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Viewtrender\Youtube\Laravel;
 
 use Google\Service\YouTube;
+use Google\Service\YouTubeAnalytics;
+use Google\Service\YouTubeReporting;
 use Illuminate\Support\ServiceProvider;
+use Viewtrender\Youtube\YoutubeAnalyticsApi;
 use Viewtrender\Youtube\YoutubeDataApi;
+use Viewtrender\Youtube\YoutubeReportingApi;
 
 class YoutubeDataApiServiceProvider extends ServiceProvider
 {
@@ -14,11 +18,30 @@ class YoutubeDataApiServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/config/youtube-testkit.php', 'youtube-testkit');
 
+        // YouTube Data API
         YoutubeDataApi::registerContainerSwap(function () {
             $this->app->instance(YouTube::class, YoutubeDataApi::youtube());
 
             if ($this->app['config']->get('youtube-testkit.prevent_stray_requests')) {
                 YoutubeDataApi::instance()->preventStrayRequests();
+            }
+        });
+
+        // YouTube Analytics API
+        YoutubeAnalyticsApi::registerContainerSwap(function () {
+            $this->app->instance(YouTubeAnalytics::class, YoutubeAnalyticsApi::youtubeAnalytics());
+
+            if ($this->app['config']->get('youtube-testkit.prevent_stray_requests')) {
+                YoutubeAnalyticsApi::instance()->preventStrayRequests();
+            }
+        });
+
+        // YouTube Reporting API
+        YoutubeReportingApi::registerContainerSwap(function () {
+            $this->app->instance(YouTubeReporting::class, YoutubeReportingApi::youtubeReporting());
+
+            if ($this->app['config']->get('youtube-testkit.prevent_stray_requests')) {
+                YoutubeReportingApi::instance()->preventStrayRequests();
             }
         });
     }
