@@ -30,5 +30,9 @@ class YoutubeDataApiServiceProvider extends ServiceProvider
                 __DIR__ . '/config/youtube-testkit.php' => config_path('youtube-testkit.php'),
             ], 'youtube-testkit-config');
         }
+
+        // Register Boost guidelines for Laravel AI assistant
+        // These get appended to CLAUDE.md/AGENTS.md when running boost:update
+        $this->loadViewsFrom(__DIR__ . '/../resources/boost/guidelines', 'youtube-testkit-boost-guidelines');
     }
 }

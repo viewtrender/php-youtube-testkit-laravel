@@ -53,4 +53,17 @@ class ServiceProviderTest extends TestCase
 
         YoutubeDataApi::assertListedChannels();
     }
+
+    public function test_boost_guidelines_exist(): void
+    {
+        $guidelinesPath = __DIR__ . '/../resources/boost/guidelines/core.blade.php';
+
+        $this->assertFileExists($guidelinesPath);
+
+        $guidelinesContent = file_get_contents($guidelinesPath);
+
+        $this->assertStringContainsString('YouTube Testkit', $guidelinesContent);
+        $this->assertStringContainsString('YoutubeDataApi::fake(', $guidelinesContent);
+        $this->assertStringContainsString('YoutubeReportingApi', $guidelinesContent);
+    }
 }
