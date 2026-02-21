@@ -56,14 +56,18 @@ class ServiceProviderTest extends TestCase
 
     public function test_boost_guidelines_exist(): void
     {
-        $guidelinesPath = __DIR__ . '/../resources/boost/guidelines/core.blade.php';
+        $basePath = __DIR__ . '/../resources/boost/guidelines/';
 
-        $this->assertFileExists($guidelinesPath);
+        $this->assertFileExists($basePath . 'youtube-data-api.md');
+        $this->assertFileExists($basePath . 'youtube-analytics-api.md');
+        $this->assertFileExists($basePath . 'youtube-reporting-api.md');
 
-        $guidelinesContent = file_get_contents($guidelinesPath);
+        $dataContent = file_get_contents($basePath . 'youtube-data-api.md');
+        $analyticsContent = file_get_contents($basePath . 'youtube-analytics-api.md');
+        $reportingContent = file_get_contents($basePath . 'youtube-reporting-api.md');
 
-        $this->assertStringContainsString('YouTube Testkit', $guidelinesContent);
-        $this->assertStringContainsString('YoutubeDataApi::fake(', $guidelinesContent);
-        $this->assertStringContainsString('YoutubeReportingApi', $guidelinesContent);
+        $this->assertStringContainsString('YoutubeDataApi::fake(', $dataContent);
+        $this->assertStringContainsString('YoutubeAnalyticsApi::fake(', $analyticsContent);
+        $this->assertStringContainsString('YoutubeReportingApi::fake(', $reportingContent);
     }
 }
