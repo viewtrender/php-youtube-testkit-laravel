@@ -56,15 +56,23 @@ class ServiceProviderTest extends TestCase
 
     public function test_boost_guidelines_exist(): void
     {
-        $guidelinePath = __DIR__ . '/../resources/boost/guidelines/core.blade.php';
+        $basePath = __DIR__ . '/../resources/boost/';
 
-        $this->assertFileExists($guidelinePath);
+        // Core guidelines file
+        $this->assertFileExists($basePath . 'guidelines/core.blade.php');
+        
+        // Skill files
+        $this->assertFileExists($basePath . 'skills/youtube-data-api/SKILL.md');
+        $this->assertFileExists($basePath . 'skills/youtube-analytics-api/SKILL.md');
+        $this->assertFileExists($basePath . 'skills/youtube-reporting-api/SKILL.md');
 
-        $content = file_get_contents($guidelinePath);
+        // Skills contain their respective fake() examples
+        $dataContent = file_get_contents($basePath . 'skills/youtube-data-api/SKILL.md');
+        $analyticsContent = file_get_contents($basePath . 'skills/youtube-analytics-api/SKILL.md');
+        $reportingContent = file_get_contents($basePath . 'skills/youtube-reporting-api/SKILL.md');
 
-        // All three APIs documented in single file
-        $this->assertStringContainsString('YoutubeDataApi::fake(', $content);
-        $this->assertStringContainsString('YoutubeAnalyticsApi::fake(', $content);
-        $this->assertStringContainsString('YoutubeReportingApi::fake(', $content);
+        $this->assertStringContainsString('YoutubeDataApi::fake(', $dataContent);
+        $this->assertStringContainsString('YoutubeAnalyticsApi::fake(', $analyticsContent);
+        $this->assertStringContainsString('YoutubeReportingApi::fake(', $reportingContent);
     }
 }
