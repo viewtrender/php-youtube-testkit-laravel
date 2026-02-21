@@ -56,7 +56,7 @@ class ServiceProviderTest extends TestCase
 
     public function test_boost_guidelines_exist(): void
     {
-        $guidelinePath = __DIR__ . '/../resources/boost/guidelines/youtube-testkit.md';
+        $guidelinePath = __DIR__ . '/../resources/boost/guidelines/core.blade.php';
 
         $this->assertFileExists($guidelinePath);
 
