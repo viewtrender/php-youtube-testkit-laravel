@@ -1,6 +1,6 @@
 ---
 name: youtube-data-api
-description: Mock YouTube Data API (videos, channels, playlists, search, comments, subscriptions, captions) in Laravel tests. Use when writing tests that fetch video metadata, channel stats, playlist items, search results, or any YouTube Data API resource.
+description: Mock YouTube Data API (videos, channels, playlists, search, comments, subscriptions, captions) in Laravel tests. Use when writing tests that fetch video metadata, channel stats, playlist items, search results, or any YouTube Data API resource. Includes pagination support for multi-page responses.
 ---
 
 # YouTube Data API Testing
@@ -33,17 +33,78 @@ it('fetches video details', function () {
 
 ## Factories
 
-| Factory | Common Methods |
-|---------|----------------|
-| `YoutubeVideo` | `list()`, `listWithVideos(array)`, `notFound()` |
-| `YoutubeChannel` | `list()`, `listWithChannels(array)`, `notFound()` |
-| `YoutubePlaylist` | `list()`, `listWithPlaylists(array)` |
-| `YoutubePlaylistItems` | `list()`, `listWithItems(array)` |
-| `YoutubeSearchResult` | `list()`, `listWithResults(array)` |
-| `YoutubeCommentThreads` | `list()`, `listWithThreads(array)` |
-| `YoutubeSubscriptions` | `list()`, `listWithSubscriptions(array)` |
-| `YoutubeActivities` | `list()`, `listWithActivities(array)` |
-| `YoutubeCaptions` | `list()`, `listWithCaptions(array)` |
+| Factory | List Method | Item Constructor | Paginated |
+|---------|------------|-----------------|-----------|
+| `YoutubeVideo` | `listWithVideos(array)` | `video(array)` | ✅ |
+| `YoutubeChannel` | `listWithChannels(array)` | `channel(array)` | ❌ |
+| `YoutubePlaylist` | `listWithPlaylists(array)` | `playlist(array)` | ✅ |
+| `YoutubePlaylistItems` | `listWithPlaylistItems(array)` | `playlistItem(array)` | ✅ |
+| `YoutubeSearchResult` | `listWithResults(array)` | `searchResult(array)` | ✅ |
+| `YoutubeComments` | `listWithComments(array)` | `comment(array)` | ✅ |
+| `YoutubeCommentThreads` | `listWithCommentThreads(array)` | `commentThread(array)` | ✅ |
+| `YoutubeSubscriptions` | `listWithSubscriptions(array)` | `subscription(array)` | ✅ |
+| `YoutubeActivities` | `listWithActivities(array)` | `activity(array)` | ✅ |
+| `YoutubeMembers` | `listWithMembers(array)` | `member(array)` | ✅ |
+| `YoutubeCaptions` | `listWithCaptions(array)` | `caption(array)` | ❌ |
+
+All factories also have `list()`, `empty()`, and accept override arrays merged with fixture defaults.
+
+## Pagination
+
+Factories marked ✅ above support multi-page responses via `paginated()` and `pages()`. Both return `array<FakeResponse>` — spread them into `fake([])`.
+
+### `paginated()` — auto-generated items
+
+```php
+use Viewtrender\Youtube\Factories\YoutubePlaylistItems;
+
+it('syncs all playlist items across pages', function () {
+    YoutubeDataApi::fake([
+        ...YoutubePlaylistItems::paginated(pages: 3, perPage: 5),
+    ]);
+
+    // Service makes 3 requests. First two have nextPageToken, last does not.
+    dispatch(new SyncVideoLibraryJob($channel));
+
+    YoutubeDataApi::assertSentCount(3);
+});
+```
+
+### `pages()` — explicit items per page
+
+```php
+use Viewtrender\Youtube\Factories\YoutubeSubscriptions;
+
+YoutubeDataApi::fake([
+    ...YoutubeSubscriptions::pages([
+        // Page 1 — has nextPageToken
+        [
+            YoutubeSubscriptions::subscription(['snippet' => ['title' => 'Channel A']]),
+            YoutubeSubscriptions::subscription(['snippet' => ['title' => 'Channel B']]),
+        ],
+        // Page 2 — last page, no nextPageToken
+        [
+            YoutubeSubscriptions::subscription(['snippet' => ['title' => 'Channel C']]),
+        ],
+    ]),
+]);
+```
+
+Raw override arrays also work with `pages()`:
+
+```php
+YoutubeDataApi::fake([
+    ...YoutubeComments::pages([
+        [
+            ['snippet' => ['textDisplay' => 'First comment']],
+            ['snippet' => ['textDisplay' => 'Second comment']],
+        ],
+        [
+            ['snippet' => ['textDisplay' => 'Third comment']],
+        ],
+    ]),
+]);
+```
 
 ## Channel Testing
 
@@ -80,7 +141,7 @@ YoutubeDataApi::fake([
 use Viewtrender\Youtube\Factories\YoutubePlaylistItems;
 
 YoutubeDataApi::fake([
-    YoutubePlaylistItems::listWithItems([
+    YoutubePlaylistItems::listWithPlaylistItems([
         ['snippet' => ['resourceId' => ['videoId' => 'vid1'], 'title' => 'First Video']],
         ['snippet' => ['resourceId' => ['videoId' => 'vid2'], 'title' => 'Second Video']],
     ]),

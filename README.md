@@ -910,9 +910,22 @@ it('sets channel watermark', function () {
 
 ## Pagination
 
-Two factories support multi-page responses: `YoutubePlaylistItems` and `YoutubeActivities`. Both expose `paginated()` and `pages()` that return `array<FakeResponse>` — spread them into `fake([])` to queue all pages at once.
+Two factories support multi-page responses via the `HasPagination` trait: **`YoutubePlaylistItems`** and **`YoutubeActivities`**. These are the Data API endpoints that return `nextPageToken` for iterating through large result sets.
+
+Both expose two static methods that return `array<FakeResponse>` — spread them into `fake([])` to queue all pages at once:
+
+| Method | Purpose |
+|--------|---------|
+| `paginated(pages, perPage)` | Auto-generate items with sensible defaults |
+| `pages(array)` | Explicit control over each page's items |
+
+Each factory also provides a named constructor for building individual items:
+- `YoutubePlaylistItems::playlistItem(array $overrides = [])`
+- `YoutubeActivities::activity(array $overrides = [])`
 
 ### `paginated()` — auto-generated items
+
+Generate multiple pages of fake items with a single call. Each page includes a `nextPageToken` except the last, and `pageInfo` reflects the total count.
 
 ```php
 it('syncs all playlist items across multiple pages', function () {
@@ -929,20 +942,49 @@ it('syncs all playlist items across multiple pages', function () {
 });
 ```
 
+#### Manual pagination loop
+
+If your code paginates through results directly (e.g., in a job or service class), you can test the full loop:
+
+```php
+it('collects all items across pages', function () {
+    YoutubeDataApi::fake([
+        ...YoutubePlaylistItems::paginated(pages: 3, perPage: 5),
+    ]);
+
+    $youtube = YoutubeDataApi::youtube();
+    $pageToken = null;
+    $allItems = [];
+
+    do {
+        $response = $youtube->playlistItems->listPlaylistItems(
+            'snippet',
+            ['playlistId' => 'PLxxx', 'pageToken' => $pageToken]
+        );
+        $allItems = array_merge($allItems, $response->getItems());
+        $pageToken = $response->getNextPageToken();
+    } while ($pageToken !== null);
+
+    expect($allItems)->toHaveCount(15);
+});
+```
+
 ### `pages()` — explicit items per page
+
+For full control over each page's contents, pass an array of pages, where each page is an array of item overrides. Use the named constructors (`::playlistItem()`, `::activity()`) or pass raw override arrays.
 
 ```php
 it('handles paginated activity feed with specific items', function () {
     YoutubeDataApi::fake([
         ...YoutubeActivities::pages([
-            // Page 1
+            // Page 1 — has nextPageToken
             [
                 YoutubeActivities::activity([
                     'snippet' => ['title' => 'Uploaded: First Video', 'type' => 'upload'],
                     'contentDetails' => ['upload' => ['videoId' => 'vid1']],
                 ]),
             ],
-            // Page 2 (no nextPageToken)
+            // Page 2 — last page, no nextPageToken
             [
                 YoutubeActivities::activity([
                     'snippet' => ['title' => 'Liked: Some Video', 'type' => 'like'],
@@ -958,9 +1000,27 @@ it('handles paginated activity feed with specific items', function () {
 });
 ```
 
+You can also pass raw arrays to `pages()` — they'll be merged with fixture defaults:
+
+```php
+YoutubeDataApi::fake([
+    ...YoutubePlaylistItems::pages([
+        // Page 1
+        [
+            ['snippet' => ['title' => 'First Video', 'resourceId' => ['videoId' => 'vid1']]],
+            ['snippet' => ['title' => 'Second Video', 'resourceId' => ['videoId' => 'vid2']]],
+        ],
+        // Page 2
+        [
+            ['snippet' => ['title' => 'Third Video', 'resourceId' => ['videoId' => 'vid3']]],
+        ],
+    ]),
+]);
+```
+
 ### Single page (no `nextPageToken`)
 
-Passing one sub-array to `pages()` produces a single response with no `nextPageToken`:
+Passing one sub-array to `pages()` produces a single response with no `nextPageToken` — useful when you want explicit item control without multi-page behavior:
 
 ```php
 YoutubeDataApi::fake([
@@ -968,6 +1028,29 @@ YoutubeDataApi::fake([
         [YoutubePlaylistItems::playlistItem(['snippet' => ['title' => 'Only Video']])],
     ]),
 ]);
+```
+
+### Testing pagination in Laravel jobs
+
+A common pattern is testing a Laravel job that syncs all items from a paginated endpoint:
+
+```php
+it('syncs video library across paginated playlist items', function () {
+    // Seed the channel
+    $channel = Channel::factory()->create(['uploads_playlist_id' => 'UUxxx']);
+
+    // Queue 2 pages of playlist items
+    YoutubeDataApi::fake([
+        ...YoutubePlaylistItems::paginated(pages: 2, perPage: 50),
+    ]);
+
+    // Dispatch the job
+    SyncVideoLibraryJob::dispatchSync($channel);
+
+    // Verify all 100 items were persisted
+    expect($channel->videos()->count())->toBe(100);
+    YoutubeDataApi::assertSentCount(2);
+});
 ```
 
 ---

@@ -2,10 +2,11 @@
 
 ## Project Overview
 
-Laravel integration package for `viewtrender/php-youtube-testkit-core`. Provides a service provider and facade that auto-swap the `Google\Service\YouTube` container binding with a fake implementation when `YoutubeDataApi::fake()` is called in tests. This lets controllers that type-hint `YouTube` in their signatures receive the fake without any manual binding.
+Laravel integration package for `viewtrender/php-youtube-testkit-core`. Provides service providers and facades that auto-swap Google API container bindings with fake implementations when `fake()` is called in tests. Controllers that type-hint the Google services receive the fake automatically.
 
-Package: `viewtrender/php-youtube-testkit-laravel` (v0.1.0)
+Package: `viewtrender/php-youtube-testkit-laravel`
 Supports: Laravel 10, 11, 12 | PHP 8.3+
+Core dependency: `viewtrender/php-youtube-testkit-core` ^0.5
 
 ## Development Commands
 
@@ -20,16 +21,36 @@ vendor/bin/phpunit --filter test_fake_auto_swaps  # Run a single test method
 
 ### Source files (`src/`, namespace `Viewtrender\Youtube\Laravel`)
 
-- **`YoutubeDataApiServiceProvider`** — Registers the `youtube-testkit` config and a container swap hook via `YoutubeDataApi::registerContainerSwap()`. When `fake()` is called, the callback binds the fake `YouTube` instance into the Laravel container and optionally enables `preventStrayRequests`.
-- **`Facades/YoutubeDataApi`** — Laravel facade for `Viewtrender\Youtube\YoutubeDataApi`. Proxies `fake()`, `reset()`, assertion methods, etc.
-- **`config/youtube-testkit.php`** — Publishable config with `fixtures_path` (custom fixture location) and `prevent_stray_requests` (throw on unmatched API calls).
+- **`YoutubeDataApiServiceProvider`** — Registers the `youtube-testkit` config and container swap hooks for all three APIs. When `fake()` is called on any facade, the callback binds the fake instance into the Laravel container.
+
+### Facades
+
+| Facade | Swaps | Use Case |
+|--------|-------|----------|
+| `YoutubeDataApi` | `Google\Service\YouTube` | Videos, channels, playlists, search, comments |
+| `YoutubeAnalyticsApi` | `Google\Service\YouTubeAnalytics` | On-demand metrics queries |
+| `YoutubeReportingApi` | `Google\Service\YouTubeReporting` | Bulk data exports, CSV pipelines |
+
+### Config (`config/youtube-testkit.php`)
+
+- `fixtures_path` — Custom fixture location (null = package defaults)
+- `prevent_stray_requests` — Throw on unmatched API calls
 
 ### How the container swap works
 
-1. `YoutubeDataApiServiceProvider::register()` calls `YoutubeDataApi::registerContainerSwap()` with a closure.
-2. When test code calls `YoutubeDataApi::fake([...])`, the core package invokes the registered closure.
-3. The closure calls `$this->app->instance(YouTube::class, YoutubeDataApi::youtube())`, replacing the container binding with the fake.
-4. Controllers that inject `YouTube` via the container now receive the fake instance.
+1. `YoutubeDataApiServiceProvider::register()` calls `registerContainerSwap()` on each API class with a closure.
+2. When test code calls `YoutubeDataApi::fake([...])` (or Analytics/Reporting), the core package invokes the registered closure.
+3. The closure calls `$this->app->instance(ServiceClass::class, FakeInstance)`, replacing the container binding.
+4. Controllers that inject the service via the container now receive the fake instance.
+
+## Boost Integration
+
+This package includes AI guidelines for Laravel Boost:
+
+- `resources/boost/guidelines/core.blade.php` — Entry point, directs to per-API skills
+- `resources/boost/skills/youtube-data-api/SKILL.md` — Data API factories + pagination
+- `resources/boost/skills/youtube-analytics-api/SKILL.md` — Analytics query factories
+- `resources/boost/skills/youtube-reporting-api/SKILL.md` — Reporting pipeline factories
 
 ## Testing
 
@@ -43,12 +64,14 @@ Tests use **Orchestra Testbench** (`Orchestra\Testbench\TestCase`) to boot a min
 
 ### Important pattern: always reset in tearDown
 
-Every test class must call `YoutubeDataApi::reset()` in `tearDown()` before `parent::tearDown()` to clear fake state between tests:
+Every test class must call reset on all used facades in `tearDown()` before `parent::tearDown()`:
 
 ```php
 protected function tearDown(): void
 {
     YoutubeDataApi::reset();
+    YoutubeAnalyticsApi::reset();
+    YoutubeReportingApi::reset();
     parent::tearDown();
 }
 ```
