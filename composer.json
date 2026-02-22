@@ -3,7 +3,7 @@
     "description": "Laravel integration for php-youtube-testkit",
     "type": "library",
     "license": "MIT",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "require": {
         "php": "^8.3",
         "viewtrender/php-youtube-testkit-core": "^0.5",
