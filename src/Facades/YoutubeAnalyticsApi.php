@@ -13,7 +13,7 @@ use Viewtrender\Youtube\YoutubeAnalyticsApi as BaseYoutubeAnalyticsApi;
 /**
  * @method static YoutubeClient fake(array $responses = [])
  * @method static Client client()
- * @method static YouTubeAnalytics youtubeAnalytics()
+ * @method static YouTubeAnalytics analytics()
  * @method static void assertSent(callable $callback)
  * @method static void assertNotSent(callable $callback)
  * @method static void assertNothingSent()

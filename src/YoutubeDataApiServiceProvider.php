@@ -29,7 +29,7 @@ class YoutubeDataApiServiceProvider extends ServiceProvider
 
         // YouTube Analytics API
         YoutubeAnalyticsApi::registerContainerSwap(function () {
-            $this->app->instance(YouTubeAnalytics::class, YoutubeAnalyticsApi::youtubeAnalytics());
+            $this->app->instance(YouTubeAnalytics::class, YoutubeAnalyticsApi::analytics());
 
             if ($this->app['config']->get('youtube-testkit.prevent_stray_requests')) {
                 YoutubeAnalyticsApi::instance()->preventStrayRequests();
@@ -38,7 +38,7 @@ class YoutubeDataApiServiceProvider extends ServiceProvider
 
         // YouTube Reporting API
         YoutubeReportingApi::registerContainerSwap(function () {
-            $this->app->instance(YouTubeReporting::class, YoutubeReportingApi::youtubeReporting());
+            $this->app->instance(YouTubeReporting::class, YoutubeReportingApi::reporting());
 
             if ($this->app['config']->get('youtube-testkit.prevent_stray_requests')) {
                 YoutubeReportingApi::instance()->preventStrayRequests();
