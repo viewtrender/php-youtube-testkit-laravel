@@ -908,6 +908,70 @@ it('sets channel watermark', function () {
 
 ---
 
+## Pagination
+
+Two factories support multi-page responses: `YoutubePlaylistItems` and `YoutubeActivities`. Both expose `paginated()` and `pages()` that return `array<FakeResponse>` — spread them into `fake([])` to queue all pages at once.
+
+### `paginated()` — auto-generated items
+
+```php
+it('syncs all playlist items across multiple pages', function () {
+    YoutubeDataApi::fake([
+        ...YoutubePlaylistItems::paginated(pages: 3, perPage: 5),
+    ]);
+
+    // Your service will make 3 requests, each returning 5 items.
+    // The first two responses include nextPageToken; the last does not.
+    $response = $this->postJson('/api/playlists/PLrAXtmErZgOe/sync');
+
+    $response->assertOk();
+    YoutubeDataApi::assertSentCount(3);
+});
+```
+
+### `pages()` — explicit items per page
+
+```php
+it('handles paginated activity feed with specific items', function () {
+    YoutubeDataApi::fake([
+        ...YoutubeActivities::pages([
+            // Page 1
+            [
+                YoutubeActivities::activity([
+                    'snippet' => ['title' => 'Uploaded: First Video', 'type' => 'upload'],
+                    'contentDetails' => ['upload' => ['videoId' => 'vid1']],
+                ]),
+            ],
+            // Page 2 (no nextPageToken)
+            [
+                YoutubeActivities::activity([
+                    'snippet' => ['title' => 'Liked: Some Video', 'type' => 'like'],
+                ]),
+            ],
+        ]),
+    ]);
+
+    $response = $this->getJson('/api/channels/UCuAXFkgsw1L7xaCfnd5JJOw/activities/all');
+
+    $response->assertOk();
+    YoutubeDataApi::assertSentCount(2);
+});
+```
+
+### Single page (no `nextPageToken`)
+
+Passing one sub-array to `pages()` produces a single response with no `nextPageToken`:
+
+```php
+YoutubeDataApi::fake([
+    ...YoutubePlaylistItems::pages([
+        [YoutubePlaylistItems::playlistItem(['snippet' => ['title' => 'Only Video']])],
+    ]),
+]);
+```
+
+---
+
 ## Testing with PHPUnit
 
 ### Base Test Case
