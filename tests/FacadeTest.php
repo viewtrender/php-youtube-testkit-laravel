@@ -251,6 +251,152 @@ class FacadeTest extends TestCase
         });
     }
 
+    // ── Analytics API — New Fixture Facades ──────────────────
+
+    public function test_analytics_api_playback_locations(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::playbackLocations(),
+        ]);
+
+        $analytics = $this->app->make(YouTubeAnalytics::class);
+        $response = $analytics->reports->query([
+            'ids' => 'channel==MINE',
+            'startDate' => '2025-01-01',
+            'endDate' => '2025-01-31',
+            'metrics' => 'views,estimatedMinutesWatched',
+            'dimensions' => 'insightPlaybackLocationType',
+        ]);
+
+        $this->assertSame('youtubeAnalytics#resultTable', $response->getKind());
+        $this->assertNotEmpty($response->getRows());
+
+        $columnNames = array_map(fn ($h) => $h->getName(), $response->getColumnHeaders());
+        $this->assertContains('insightPlaybackLocationType', $columnNames);
+
+        YoutubeAnalyticsApi::assertSentCount(1);
+    }
+
+    public function test_analytics_api_playback_locations_with_column_filtering(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::playbackLocations(metrics: ['views']),
+        ]);
+
+        $analytics = $this->app->make(YouTubeAnalytics::class);
+        $response = $analytics->reports->query([
+            'ids' => 'channel==MINE',
+            'startDate' => '2025-01-01',
+            'endDate' => '2025-01-31',
+            'metrics' => 'views',
+            'dimensions' => 'insightPlaybackLocationType',
+        ]);
+
+        $columnNames = array_map(fn ($h) => $h->getName(), $response->getColumnHeaders());
+        $this->assertSame(['insightPlaybackLocationType', 'views'], $columnNames);
+    }
+
+    public function test_analytics_api_operating_systems(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::operatingSystems(),
+        ]);
+
+        $analytics = $this->app->make(YouTubeAnalytics::class);
+        $response = $analytics->reports->query([
+            'ids' => 'channel==MINE',
+            'startDate' => '2025-01-01',
+            'endDate' => '2025-01-31',
+            'metrics' => 'views,estimatedMinutesWatched',
+            'dimensions' => 'operatingSystem',
+        ]);
+
+        $this->assertSame('youtubeAnalytics#resultTable', $response->getKind());
+        $this->assertNotEmpty($response->getRows());
+
+        $columnNames = array_map(fn ($h) => $h->getName(), $response->getColumnHeaders());
+        $this->assertContains('operatingSystem', $columnNames);
+
+        YoutubeAnalyticsApi::assertSentCount(1);
+    }
+
+    public function test_analytics_api_sharing_service(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::sharingService(),
+        ]);
+
+        $analytics = $this->app->make(YouTubeAnalytics::class);
+        $response = $analytics->reports->query([
+            'ids' => 'channel==MINE',
+            'startDate' => '2025-01-01',
+            'endDate' => '2025-01-31',
+            'metrics' => 'shares',
+            'dimensions' => 'sharingService',
+        ]);
+
+        $this->assertSame('youtubeAnalytics#resultTable', $response->getKind());
+        $this->assertNotEmpty($response->getRows());
+
+        $columnNames = array_map(fn ($h) => $h->getName(), $response->getColumnHeaders());
+        $this->assertContains('sharingService', $columnNames);
+        $this->assertContains('shares', $columnNames);
+
+        YoutubeAnalyticsApi::assertSentCount(1);
+    }
+
+    public function test_analytics_api_device_operating_system(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::deviceOperatingSystem(),
+        ]);
+
+        $analytics = $this->app->make(YouTubeAnalytics::class);
+        $response = $analytics->reports->query([
+            'ids' => 'channel==MINE',
+            'startDate' => '2025-01-01',
+            'endDate' => '2025-01-31',
+            'metrics' => 'views,estimatedMinutesWatched',
+            'dimensions' => 'deviceType,operatingSystem',
+        ]);
+
+        $this->assertSame('youtubeAnalytics#resultTable', $response->getKind());
+        $this->assertNotEmpty($response->getRows());
+
+        $columnNames = array_map(fn ($h) => $h->getName(), $response->getColumnHeaders());
+        $this->assertContains('deviceType', $columnNames);
+        $this->assertContains('operatingSystem', $columnNames);
+
+        YoutubeAnalyticsApi::assertSentCount(1);
+    }
+
+    public function test_analytics_api_audience_retention(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::audienceRetention(),
+        ]);
+
+        $analytics = $this->app->make(YouTubeAnalytics::class);
+        $response = $analytics->reports->query([
+            'ids' => 'channel==MINE',
+            'startDate' => '2025-01-01',
+            'endDate' => '2025-01-31',
+            'metrics' => 'audienceWatchRatio,relativeRetentionPerformance',
+            'dimensions' => 'elapsedVideoTimeRatio',
+            'filters' => 'video==abc123',
+        ]);
+
+        $this->assertSame('youtubeAnalytics#resultTable', $response->getKind());
+        $this->assertCount(100, $response->getRows());
+
+        $columnNames = array_map(fn ($h) => $h->getName(), $response->getColumnHeaders());
+        $this->assertContains('elapsedVideoTimeRatio', $columnNames);
+        $this->assertContains('audienceWatchRatio', $columnNames);
+        $this->assertContains('relativeRetentionPerformance', $columnNames);
+
+        YoutubeAnalyticsApi::assertSentCount(1);
+    }
+
     // ── Reporting API Facade ──────────────────────────────────
 
     public function test_reporting_api_fake_returns_fake_client(): void

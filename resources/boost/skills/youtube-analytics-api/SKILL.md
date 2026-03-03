@@ -40,9 +40,17 @@ it('fetches channel overview', function () {
 | `channelOverview(array)` | Aggregate channel metrics |
 | `dailyMetrics(array)` | Time-series by day |
 | `topVideos(array)` | Videos ranked by metric |
-| `trafficSources(array)` | Traffic source breakdown |
+| `trafficSources(dims, metrics, overrides)` | Traffic source breakdown (column filtering) |
+| `trafficSourceDetail(dims, metrics, overrides)` | Traffic source detail (column filtering) |
+| `playbackLocations(dims, metrics, overrides)` | Playback location breakdown (column filtering) |
+| `operatingSystems(dims, metrics, overrides)` | OS breakdown (column filtering) |
+| `sharingService(dims, metrics, overrides)` | Sharing service breakdown (column filtering) |
+| `deviceOperatingSystem(dims, metrics, overrides)` | Device × OS combo (column filtering) |
+| `audienceRetention(array)` | 100-point retention curve (per-video) |
 | `demographics(array)` | Age/gender distribution |
 | `geography(array)` | Country breakdown |
+| `deviceTypes(array)` | Device type breakdown |
+| `videoAnalytics(array)` | Single video metrics |
 | `videoTypes(array)` | VOD vs Shorts vs Live |
 
 ## Daily Metrics
@@ -124,6 +132,54 @@ YoutubeAnalyticsApi::fake([
 | `likes`, `shares`, `comments` | int | Engagement counts |
 | `viewerPercentage` | float | Demographics percentage |
 
+## Playback Locations
+
+```php
+YoutubeAnalyticsApi::fake([
+    AnalyticsQueryResponse::playbackLocations(),
+    // Or filter columns:
+    AnalyticsQueryResponse::playbackLocations(metrics: ['views']),
+]);
+```
+
+## Operating Systems
+
+```php
+YoutubeAnalyticsApi::fake([
+    AnalyticsQueryResponse::operatingSystems(),
+    // Or filter columns:
+    AnalyticsQueryResponse::operatingSystems(metrics: ['views', 'estimatedMinutesWatched']),
+]);
+```
+
+## Sharing Service
+
+```php
+YoutubeAnalyticsApi::fake([
+    AnalyticsQueryResponse::sharingService(),
+]);
+```
+
+## Device × Operating System
+
+```php
+YoutubeAnalyticsApi::fake([
+    AnalyticsQueryResponse::deviceOperatingSystem(),
+    // Or filter:
+    AnalyticsQueryResponse::deviceOperatingSystem(metrics: ['views']),
+]);
+```
+
+## Audience Retention
+
+```php
+// Returns 100 data points (elapsedVideoTimeRatio 0.01–1.00)
+// Requires video filter in real API; fixture has pre-captured data
+YoutubeAnalyticsApi::fake([
+    AnalyticsQueryResponse::audienceRetention(),
+]);
+```
+
 ## Available Dimensions
 
 | Dimension | Example Values |
@@ -134,6 +190,11 @@ YoutubeAnalyticsApi::fake([
 | `ageGroup` | `age18-24`, `age25-34`, `age35-44` |
 | `gender` | `male`, `female` |
 | `insightTrafficSourceType` | `RELATED_VIDEO`, `YT_SEARCH`, `EXT_URL` |
+| `insightPlaybackLocationType` | `WATCH`, `EMBEDDED`, `BROWSE`, `CHANNEL` |
+| `operatingSystem` | `WINDOWS`, `ANDROID`, `IOS`, `MACINTOSH`, `LINUX` |
+| `sharingService` | `COPY_PASTE`, `WHATS_APP`, `FACEBOOK`, `TWITTER` |
+| `deviceType` | `DESKTOP`, `MOBILE`, `TABLET`, `TV` |
+| `elapsedVideoTimeRatio` | `0.01` – `1.00` (floats) |
 | `creatorContentType` | `VIDEO_ON_DEMAND`, `SHORTS`, `LIVE_STREAM` |
 
 ## Assertions

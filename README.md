@@ -1554,6 +1554,79 @@ class ChannelAnalyticsTest extends AnalyticsTestCase
         $response->assertOk();
         $response->assertJsonCount(3, 'rows');
     }
+
+    public function test_fetches_playback_locations(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::playbackLocations(),
+        ]);
+
+        $response = $this->getJson('/api/analytics/playback-locations');
+
+        $response->assertOk();
+        $response->assertJsonPath('rows.0.0', 'WATCH');
+    }
+
+    public function test_fetches_playback_locations_filtered(): void
+    {
+        // Column filtering: only request views metric
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::playbackLocations(metrics: ['views']),
+        ]);
+
+        $response = $this->getJson('/api/analytics/playback-locations?metrics=views');
+
+        $response->assertOk();
+    }
+
+    public function test_fetches_operating_systems(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::operatingSystems(),
+        ]);
+
+        $response = $this->getJson('/api/analytics/operating-systems');
+
+        $response->assertOk();
+        $response->assertJsonPath('rows.0.0', 'WINDOWS');
+    }
+
+    public function test_fetches_sharing_service(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::sharingService(),
+        ]);
+
+        $response = $this->getJson('/api/analytics/sharing');
+
+        $response->assertOk();
+        $response->assertJsonPath('rows.0.0', 'COPY_PASTE');
+    }
+
+    public function test_fetches_device_os_combo(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::deviceOperatingSystem(),
+        ]);
+
+        $response = $this->getJson('/api/analytics/device-os');
+
+        $response->assertOk();
+        $response->assertJsonPath('rows.0.0', 'DESKTOP');
+        $response->assertJsonPath('rows.0.1', 'WINDOWS');
+    }
+
+    public function test_fetches_audience_retention(): void
+    {
+        YoutubeAnalyticsApi::fake([
+            AnalyticsQueryResponse::audienceRetention(),
+        ]);
+
+        $response = $this->getJson('/api/analytics/retention?video=abc123');
+
+        $response->assertOk();
+        $response->assertJsonCount(100, 'rows');
+    }
 }
 ```
 
