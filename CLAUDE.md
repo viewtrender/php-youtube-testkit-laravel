@@ -5,7 +5,7 @@
 Laravel integration package for `viewtrender/php-youtube-testkit-core`. Provides service providers and facades that auto-swap Google API container bindings with fake implementations when `fake()` is called in tests. Controllers that type-hint the Google services receive the fake automatically.
 
 Package: `viewtrender/php-youtube-testkit-laravel`
-Supports: Laravel 10, 11, 12 | PHP 8.3+
+Supports: Laravel 10, 11, 12, 13 | PHP 8.3+
 Core dependency: `viewtrender/php-youtube-testkit-core` ^0.5
 
 ## Development Commands

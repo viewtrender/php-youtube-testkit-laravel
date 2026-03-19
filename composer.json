@@ -3,11 +3,10 @@
     "description": "Laravel integration for php-youtube-testkit",
     "type": "library",
     "license": "MIT",
-    "version": "0.6.3",
     "require": {
         "php": "^8.3",
         "viewtrender/php-youtube-testkit-core": "^0.6",
-        "illuminate/support": "^10.0|^11.0|^12.0"
+        "illuminate/support": "^10.0|^11.0|^12.0|^13.0"
     },
     "require-dev": {
         "orchestra/testbench": "^10.0",
